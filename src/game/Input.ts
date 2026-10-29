@@ -5,6 +5,7 @@ const RIGHT_KEYS = new Set(['ArrowRight', 'KeyD'])
 export class Input {
   private left = false
   private right = false
+  private grow = false
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
@@ -13,6 +14,13 @@ export class Input {
 
   get steer(): number {
     return (this.right ? 1 : 0) - (this.left ? 1 : 0)
+  }
+
+  /** Dev aid until fruit exists: G lengthens the snake. */
+  consumeGrow(): boolean {
+    const pressed = this.grow
+    this.grow = false
+    return pressed
   }
 
   dispose() {
@@ -26,5 +34,6 @@ export class Input {
   private set(code: string, down: boolean) {
     if (LEFT_KEYS.has(code)) this.left = down
     else if (RIGHT_KEYS.has(code)) this.right = down
+    else if (code === 'KeyG' && down) this.grow = true
   }
 }
