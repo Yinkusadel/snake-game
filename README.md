@@ -1,75 +1,40 @@
-# React + TypeScript + Vite
+# EWURABA
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A futuristic 3D snake game. You play a girl-headed naga with a rose-and-lace crown, gliding through a bioluminescent cyber-garden, eating glowing fruits and dodging thorns.
 
-Currently, two official plugins are available:
+> **Status:** in design. The game itself is not built yet. See the [design document](docs/DESIGN.md) for the full plan.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Planned features
 
-## React Compiler
+- Smooth free movement in full 3D with a chase camera
+- A stylized snake with a female face, glowing eyes, gold jewelry and a rose-and-lace crown
+- A glowing night garden with holographic ruins, neon vines and floating petals
+- Power-ups: Shield, Time Slow, Fruit Magnet, Lace Dash
+- Thorn hazards that spread as your score rises
+- Generated ambient music and sound effects
+- Keyboard and mobile touch controls
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech stack
 
-## Expanding the ESLint configuration
+- [Vite](https://vite.dev), [React](https://react.dev) and TypeScript
+- [Three.js](https://threejs.org) for 3D rendering (to be added)
+- Web Audio API for sound
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Other scripts:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Command | What it does |
+| --- | --- |
+| `npm run build` | Type-check and build for production |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Run ESLint |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Documentation
 
-```
+- [Design document](docs/DESIGN.md): vision, snake and garden design, gameplay, controls and build plan
