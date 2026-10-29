@@ -39,16 +39,20 @@ The model is built in code. If a `.glb` character model is supplied later, it re
 ## 5. Gameplay
 - **Movement:** continuous glide; the player steers left and right, and the head turns with smooth turn-rate limits. The body follows the head's path.
 - **Camera:** third-person chase camera, angled above and behind, with a smooth follow and slight look-ahead.
-- **Food:** glowing roses. Each one lengthens her and adds score. Golden roses give bonus points and appear rarely.
+- **Food:** dynamic glowing fruits. Each one lengthens her and adds score. Fruits grow on garden vines and trees, ripen, then drop or float within reach. A fruit left too long overripens and fades.
+  - Common: glowing berries, apples, pears. Small growth, base score.
+  - Exotic: dragonfruit, starfruit, pomegranate. More growth and score.
+  - Rare golden fruit: big bonus, appears briefly.
+  - Fruit varies by level mood (for example, night-blooming fruits at midnight, aurora fruits at the aurora level).
 - **Power-ups:**
   - Shield: survive one collision.
   - Time Slow: the world slows for a few seconds.
-  - Petal Magnet: nearby roses fly toward her.
+  - Fruit Magnet: nearby fruits fly toward her.
   - Lace Dash: short speed burst.
 - **Hazards:** thorn vines that grow and spread as score rises; holographic pillars appear in later levels.
 - **Game over:** collision with a thorn, pillar, arena wall or her own body (unless shielded).
 - **Progression:** speed and hazards scale with score; moods change per level.
-- **Scoring:** rose = 10, golden rose = 50, with a combo multiplier for eating quickly in a row. Best score saved locally.
+- **Scoring:** common fruit = 10, exotic fruit = 25, golden fruit = 50, with a combo multiplier for eating quickly in a row. Best score saved locally.
 
 ## 6. Controls
 - Keyboard: arrow keys or A/D (WASD) to steer, Space to use Lace Dash, P/Esc to pause.
@@ -56,7 +60,7 @@ The model is built in code. If a `.glb` character model is supplied later, it re
 
 ## 7. Audio
 - Ambient synth pad generated with Web Audio.
-- Sound effects: rose pickup, power-up, dash, shield break, game over.
+- Sound effects: fruit pickup, power-up, dash, shield break, game over.
 - Mute toggle.
 
 ## 8. UI
@@ -69,7 +73,7 @@ The model is built in code. If a `.glb` character model is supplied later, it re
 1. Project setup: add Three.js, base scene, camera, game loop.
 2. Garden environment: ground, lighting, fog, bloom, props.
 3. Snake: path-following body, head with face, crown, jewelry.
-4. Gameplay: steering, roses, growth, collisions, scoring.
+4. Gameplay: steering, fruits, growth, collisions, scoring.
 5. Power-ups and hazards.
 6. UI screens and HUD.
 7. Audio.
