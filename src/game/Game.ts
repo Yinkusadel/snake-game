@@ -1,7 +1,12 @@
 import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
+import { ARENA_RADIUS } from './constants'
+import { Garden } from './garden/Garden'
 import { Input } from './Input'
 
-const ARENA_RADIUS = 30
 const STEP = 1 / 60
 const MAX_FRAME = 0.25
 const SPEED = 6
@@ -19,6 +24,8 @@ export class Game {
   private camera = new THREE.PerspectiveCamera(60, 1, 0.1, 300)
   private input = new Input()
   private timer = new THREE.Timer()
+  private composer: EffectComposer
+  private garden = new Garden()
   private resizeObserver: ResizeObserver
   private frame = 0
   private accumulator = 0
@@ -32,7 +39,7 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.container = container
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -46,16 +53,7 @@ export class Game {
     moon.position.set(-20, 30, 10)
     this.scene.add(moon)
 
-    const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(ARENA_RADIUS, 96),
-      new THREE.MeshStandardMaterial({ color: 0x0b2a2a, roughness: 0.9 }),
-    )
-    ground.rotation.x = -Math.PI / 2
-    this.scene.add(ground)
-
-    const grid = new THREE.PolarGridHelper(ARENA_RADIUS, 12, 10, 96, 0x1f6f66, 0x123c3c)
-    grid.position.y = 0.01
-    this.scene.add(grid)
+    this.scene.add(this.garden.group)
 
     this.head = new THREE.Mesh(
       new THREE.SphereGeometry(0.7, 32, 16),
@@ -67,6 +65,14 @@ export class Game {
     )
     this.head.position.y = 0.7
     this.scene.add(this.head)
+
+    // Bloom makes the over-bright emissive materials glow. The multisampled
+    // target keeps edges smooth since the renderer's own MSAA is bypassed.
+    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 })
+    this.composer = new EffectComposer(this.renderer, target)
+    this.composer.addPass(new RenderPass(this.scene, this.camera))
+    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.6, 0.5, 0.9))
+    this.composer.addPass(new OutputPass())
 
     this.resizeObserver = new ResizeObserver(this.resize)
     this.resizeObserver.observe(container)
@@ -82,12 +88,18 @@ export class Game {
     this.input.dispose()
     this.timer.dispose()
     this.scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
         obj.geometry.dispose()
         const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
-        materials.forEach((m) => m.dispose())
+        materials.forEach((m) => {
+          m.map?.dispose()
+          m.emissiveMap?.dispose()
+          m.dispose()
+        })
       }
     })
+    this.garden.dispose()
+    this.composer.dispose()
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -104,8 +116,9 @@ export class Game {
       this.accumulator -= STEP
     }
 
+    this.garden.update(this.timer.getElapsed(), dt)
     this.updateCamera(dt)
-    this.renderer.render(this.scene, this.camera)
+    this.composer.render()
   }
 
   private update(dt: number) {
@@ -149,6 +162,7 @@ export class Game {
     const { clientWidth: w, clientHeight: h } = this.container
     if (w === 0 || h === 0) return
     this.renderer.setSize(w, h)
+    this.composer.setSize(w, h)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
   }
