@@ -5,7 +5,12 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const game = new Game(containerRef.current!)
+    const params = new URLSearchParams(window.location.search)
+    const showcase = params.get('showcase')
+    const angle = Number(showcase)
+    const game = new Game(containerRef.current!, {
+      showcase: showcase === null ? undefined : { angle: showcase === '' || Number.isNaN(angle) ? undefined : angle },
+    })
     return () => game.dispose()
   }, [])
 

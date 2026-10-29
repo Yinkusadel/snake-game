@@ -5,14 +5,26 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { ARENA_RADIUS } from './constants'
 import { Garden } from './garden/Garden'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { Input } from './Input'
+import { HEAD_HEIGHT, Snake } from './snake/Snake'
 
 const STEP = 1 / 60
 const MAX_FRAME = 0.25
 const SPEED = 6
 const TURN_RATE = 2.4
-const CAMERA_HEIGHT = 7
-const CAMERA_DISTANCE = 10
+const CAMERA_HEIGHT = 5.2
+const CAMERA_DISTANCE = 7.5
+const SHOWCASE_DISTANCE = 3.4
+
+export interface GameOptions {
+  /**
+   * Camera studies the snake's face instead of chasing her, for the title
+   * screen and for checking her design. `angle` (degrees, 0 = face on) fixes
+   * the view; leave it out to orbit.
+   */
+  showcase?: { angle?: number }
+}
 
 /**
  * Owns the renderer, scene and game loop. Lives outside React state:
@@ -30,15 +42,19 @@ export class Game {
   private frame = 0
   private accumulator = 0
 
-  // Placeholder head; replaced by the snake in stage 3.
-  private head: THREE.Mesh
+  private snake = new Snake(0, 0, 0)
+  private position = new THREE.Vector3()
+  private options: GameOptions
+  private envMap: THREE.WebGLRenderTarget
   private heading = 0
+  private steer = 0
   private cameraTarget = new THREE.Vector3()
 
   private container: HTMLElement
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, options: GameOptions = {}) {
     this.container = container
+    this.options = options
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -53,18 +69,16 @@ export class Game {
     moon.position.set(-20, 30, 10)
     this.scene.add(moon)
 
+    // Soft studio reflections so the gold and hair catch light.
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    this.envMap = pmrem.fromScene(new RoomEnvironment(), 0.04)
+    this.scene.environment = this.envMap.texture
+    this.scene.environmentIntensity = 0.45
+    pmrem.dispose()
+
     this.scene.add(this.garden.group)
 
-    this.head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 32, 16),
-      new THREE.MeshStandardMaterial({
-        color: 0x1fcf7a,
-        emissive: 0x0a5a35,
-        roughness: 0.4,
-      }),
-    )
-    this.head.position.y = 0.7
-    this.scene.add(this.head)
+    this.scene.add(this.snake.group)
 
     // Bloom makes the over-bright emissive materials glow. The multisampled
     // target keeps edges smooth since the renderer's own MSAA is bypassed.
@@ -92,13 +106,16 @@ export class Game {
         obj.geometry.dispose()
         const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
         materials.forEach((m) => {
-          m.map?.dispose()
-          m.emissiveMap?.dispose()
+          for (const value of Object.values(m)) {
+            if (value instanceof THREE.Texture) value.dispose()
+          }
           m.dispose()
         })
       }
     })
     this.garden.dispose()
+    this.snake.dispose()
+    this.envMap.dispose()
     this.composer.dispose()
     this.renderer.dispose()
     this.renderer.domElement.remove()
@@ -116,45 +133,64 @@ export class Game {
       this.accumulator -= STEP
     }
 
-    this.garden.update(this.timer.getElapsed(), dt)
-    this.updateCamera(dt)
+    const elapsed = this.timer.getElapsed()
+    this.garden.update(elapsed, dt)
+    if (this.input.consumeGrow()) this.snake.grow(3)
+    this.snake.update(dt, elapsed, this.position.x, this.position.z, this.heading, this.steer)
+    this.updateCamera(dt, elapsed)
     this.composer.render()
   }
 
   private update(dt: number) {
-    this.heading -= this.input.steer * TURN_RATE * dt
-    this.head.position.x += Math.sin(this.heading) * SPEED * dt
-    this.head.position.z += Math.cos(this.heading) * SPEED * dt
+    if (this.options.showcase) return
 
-    // Keep the placeholder inside the arena until real collisions exist.
-    const dist = Math.hypot(this.head.position.x, this.head.position.z)
+    this.steer = this.input.steer
+    this.heading -= this.steer * TURN_RATE * dt
+    this.position.x += Math.sin(this.heading) * SPEED * dt
+    this.position.z += Math.cos(this.heading) * SPEED * dt
+
+    // Keep her inside the arena until real collisions exist.
+    const dist = Math.hypot(this.position.x, this.position.z)
     const limit = ARENA_RADIUS - 1
     if (dist > limit) {
-      this.head.position.x *= limit / dist
-      this.head.position.z *= limit / dist
+      this.position.x *= limit / dist
+      this.position.z *= limit / dist
     }
   }
 
-  private desiredCameraPosition(out: THREE.Vector3) {
+  private desiredCameraPosition(out: THREE.Vector3, elapsed = 0) {
+    const showcase = this.options.showcase
+    if (showcase) {
+      const angle = showcase.angle !== undefined ? (showcase.angle * Math.PI) / 180 : elapsed * 0.35
+      return out.set(
+        this.position.x + Math.sin(angle) * SHOWCASE_DISTANCE,
+        HEAD_HEIGHT + 0.25,
+        this.position.z + Math.cos(angle) * SHOWCASE_DISTANCE,
+      )
+    }
     return out.set(
-      this.head.position.x - Math.sin(this.heading) * CAMERA_DISTANCE,
+      this.position.x - Math.sin(this.heading) * CAMERA_DISTANCE,
       CAMERA_HEIGHT,
-      this.head.position.z - Math.cos(this.heading) * CAMERA_DISTANCE,
+      this.position.z - Math.cos(this.heading) * CAMERA_DISTANCE,
     )
+  }
+
+  private focusPoint(out: THREE.Vector3) {
+    return out.set(this.position.x, this.options.showcase ? HEAD_HEIGHT : 1, this.position.z)
   }
 
   private snapCamera() {
     this.desiredCameraPosition(this.camera.position)
-    this.cameraTarget.copy(this.head.position)
+    this.cameraTarget.copy(this.focusPoint(new THREE.Vector3()))
     this.camera.lookAt(this.cameraTarget)
   }
 
-  private updateCamera(dt: number) {
-    const desired = this.desiredCameraPosition(new THREE.Vector3())
+  private updateCamera(dt: number, elapsed: number) {
+    const desired = this.desiredCameraPosition(new THREE.Vector3(), elapsed)
     // Frame-rate independent exponential smoothing.
-    const t = 1 - Math.exp(-6 * dt)
+    const t = this.options.showcase ? 1 : 1 - Math.exp(-6 * dt)
     this.camera.position.lerp(desired, t)
-    this.cameraTarget.lerp(this.head.position, 1 - Math.exp(-10 * dt))
+    this.cameraTarget.lerp(this.focusPoint(new THREE.Vector3()), 1 - Math.exp(-10 * dt))
     this.camera.lookAt(this.cameraTarget)
   }
 
