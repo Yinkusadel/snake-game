@@ -26,6 +26,7 @@ export interface GameState {
   length: number
   /** Fruit eaten this run. */
   eaten: number
+  muted: boolean
   combo: number
   multiplier: number
   level: number

@@ -9,6 +9,7 @@ const INITIAL: GameState = {
   best: 0,
   length: 0,
   eaten: 0,
+  muted: false,
   combo: 0,
   multiplier: 1,
   level: 0,
@@ -18,6 +19,7 @@ const INITIAL: GameState = {
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const gameRef = useRef<Game | null>(null)
   const [state, setState] = useState<GameState>(INITIAL)
 
   useEffect(() => {
@@ -29,7 +31,11 @@ function App() {
       quality: params.get('quality') === 'low' ? 'low' : 'high',
       onState: setState,
     })
-    return () => game.dispose()
+    gameRef.current = game
+    return () => {
+      game.dispose()
+      gameRef.current = null
+    }
   }, [])
 
   const showcase = new URLSearchParams(window.location.search).has('showcase')
@@ -37,7 +43,7 @@ function App() {
   return (
     <>
       <div ref={containerRef} className="game-canvas" />
-      {!showcase && <Hud state={state} />}
+      {!showcase && <Hud state={state} onToggleMute={() => gameRef.current?.toggleMute()} />}
     </>
   )
 }

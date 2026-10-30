@@ -442,3 +442,29 @@ body,
     opacity: 1;
   }
 }
+
+/* ---- Sound button ---- */
+
+.sound-button {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+  line-height: 1;
+  color: #e9fff2;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.sound-button:hover,
+.sound-button:focus-visible {
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(245, 185, 64, 0.45);
+}

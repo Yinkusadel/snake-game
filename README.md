@@ -2,11 +2,12 @@
 
 A futuristic 3D snake game. You play a girl-headed naga with a rose-and-lace crown, gliding through a bioluminescent cyber-garden, eating glowing fruits and dodging thorns.
 
-> **Status:** playable prototype. The garden, the snake, fruit, scoring, collisions, power-ups and hazards are in. The title, pause and game-over screens are done. Sound and mobile controls are still to come. See the [design document](docs/DESIGN.md) for the full plan.
+> **Status:** playable prototype. The garden, the snake, fruit, scoring, collisions, power-ups and hazards are in. The title, pause and game-over screens are done. Sound is in too; mobile controls are still to come. See the [design document](docs/DESIGN.md) for the full plan.
 
 ## How to play
 
 - Press **Space** or tap to start.
+- Press **M** (or click the speaker button) to mute. The soundtrack and every effect are generated in code, so there are no audio files.
 - Press **Esc** or **P** to pause. The game also pauses when you switch away.
 - Steer with **← →** or **A / D**.
 - Eat the glowing fruit to grow and score. Exotic fruit is worth more, and golden fruit is rare and brief. Eat quickly in a row for a combo multiplier.

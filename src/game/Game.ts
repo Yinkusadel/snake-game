@@ -6,12 +6,14 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { ARENA_RADIUS } from './constants'
 import { softDotTexture } from './dot'
+import { GameAudio } from './audio/GameAudio'
 import { Fruits } from './fruit/Fruits'
 import { Garden } from './garden/Garden'
 import { Hazards, type Hazard } from './hazards/Hazards'
 import { createHoloMaterial } from './holo'
 import { Input } from './Input'
 import { Particles } from './Particles'
+import type { FruitTier } from './audio/GameAudio'
 import { POWER_SPECS, PowerUps, type PowerKind } from './powerups/PowerUps'
 import { HEAD_HEIGHT, Snake } from './snake/Snake'
 import type { DeathReason, EffectsState, GameState, Phase } from './state'
@@ -102,6 +104,7 @@ export class Game {
   private fruits = new Fruits()
   private dot = softDotTexture()
   private particles = new Particles(500, this.dot)
+  private audio = new GameAudio()
   private powerUps = new PowerUps()
   private hazards = new Hazards()
   private holoTime = { value: 0 }
@@ -194,6 +197,8 @@ export class Game {
 
     if (import.meta.env.DEV) (window as Window & { __ewuraba?: Game }).__ewuraba = this
     window.addEventListener('blur', this.pauseIfPlaying)
+    window.addEventListener('pointerdown', this.unlockAudio)
+    window.addEventListener('keydown', this.unlockAudio)
     document.addEventListener('visibilitychange', this.pauseIfPlaying)
 
     this.snapCamera()
@@ -205,6 +210,8 @@ export class Game {
     cancelAnimationFrame(this.frame)
     this.resizeObserver.disconnect()
     window.removeEventListener('blur', this.pauseIfPlaying)
+    window.removeEventListener('pointerdown', this.unlockAudio)
+    window.removeEventListener('keydown', this.unlockAudio)
     document.removeEventListener('visibilitychange', this.pauseIfPlaying)
     this.input.dispose()
     this.timer.dispose()
@@ -221,6 +228,7 @@ export class Game {
       }
     })
     this.garden.dispose()
+    this.audio.dispose()
     this.fruits.dispose()
     this.powerUps.dispose()
     this.hazards.dispose()
@@ -271,6 +279,7 @@ export class Game {
       best: this.best,
       length: this.snake.size,
       eaten: this.eaten,
+      muted: this.audio.isMuted,
       combo: this.combo,
       multiplier: this.multiplier,
       level: this.level,
@@ -300,6 +309,10 @@ export class Game {
     this.dashReady = false
     this.dashTimer = 0
     this.level = 0
+    this.audio.setMood(0)
+    this.audio.setMode('play')
+    this.audio.setSlow(false)
+    this.audio.start()
     this.score = 0
     this.eaten = 0
     this.combo = 0
@@ -317,6 +330,9 @@ export class Game {
     this.combo = 0
     this.slowTimer = 0
     this.magnetTimer = 0
+    this.audio.setSlow(false)
+    this.audio.setMode('over')
+    this.audio.death()
     if (this.score > this.best) {
       this.best = this.score
       saveBest(this.best)
@@ -326,15 +342,18 @@ export class Game {
     this.emit()
   }
 
-  private eat(x: number, y: number, z: number, glow: number, points: number, growth: number) {
+  private eat(x: number, y: number, z: number, glow: number, points: number, growth: number, tier: FruitTier) {
     this.combo = this.comboTimer > 0 ? this.combo + 1 : 1
     this.comboTimer = COMBO_WINDOW
     this.score += points * this.multiplier
     this.eaten++
     this.snake.grow(growth)
+    this.audio.eat(this.multiplier, tier)
     const level = MOODS.reduce((n, m, i) => (this.score >= m.from ? i : n), 0)
     if (level !== this.level) {
       this.level = level
+      this.audio.setMood(level)
+      this.audio.levelUp()
       this.particles.burst(this.position.x, HEAD_HEIGHT + 1, this.position.z, 0xffe39a, 70, 8)
     }
     this.particles.burst(x, y, z, glow, 36, 4.5)
@@ -348,6 +367,7 @@ export class Game {
     const dt = this.phase === 'paused' ? 0 : Math.min(this.timer.getDelta(), MAX_FRAME)
     const elapsed = this.timer.getElapsed()
 
+    if (this.input.consumeMute()) this.toggleMute()
     if (this.input.consumePause() && !this.options.showcase) {
       if (this.phase === 'playing') this.setPaused(true)
       else if (this.phase === 'paused') this.setPaused(false)
@@ -405,7 +425,19 @@ export class Game {
     this.position.z += Math.cos(this.heading) * this.speed() * dt
   }
 
+  private unlockAudio = () => {
+    this.audio.unlock()
+  }
+
+  /** Called by the HUD's sound button and the M key. */
+  toggleMute() {
+    this.audio.setMuted(!this.audio.isMuted)
+    this.emit()
+  }
+
   private setPaused(paused: boolean) {
+    this.audio.setMode(paused ? 'pause' : 'play')
+    this.audio.pause(paused)
     this.phase = paused ? 'paused' : 'playing'
     // Don't let the time spent paused run through the fixed-step loop on resume.
     this.accumulator = 0
@@ -420,6 +452,7 @@ export class Game {
     if (!this.dashReady || this.dashTimer > 0) return
     this.dashReady = false
     this.dashTimer = DASH_TIME
+    this.audio.dash()
     this.particles.burst(this.position.x, HEAD_HEIGHT, this.position.z, POWER_SPECS.dash.color, 30, 6)
     this.emit()
   }
@@ -427,12 +460,14 @@ export class Game {
   private collect(kind: PowerKind) {
     const spec = POWER_SPECS[kind]
     this.pickups++
+    this.audio.power(kind)
     switch (kind) {
       case 'shield':
         this.shield = true
         break
       case 'slow':
         this.slowTimer = spec.duration
+        this.audio.setSlow(true)
         break
       case 'magnet':
         this.magnetTimer = spec.duration
@@ -486,6 +521,10 @@ export class Game {
         if (this[key] <= 0) {
           this[key] = 0
           changed = true
+          if (key === 'slowTimer') {
+            this.audio.setSlow(false)
+            this.audio.slowEnd()
+          }
         }
       }
     }
@@ -495,7 +534,7 @@ export class Game {
 
     const eaten = this.fruits.tryEat(this.position.x, this.position.z)
     if (eaten) {
-      this.eat(eaten.x, eaten.y, eaten.z, eaten.spec.glow, eaten.spec.points, eaten.spec.growth)
+      this.eat(eaten.x, eaten.y, eaten.z, eaten.spec.glow, eaten.spec.points, eaten.spec.growth, eaten.spec.tier)
     }
     const power = this.powerUps.tryCollect(this.position.x, this.position.z)
     if (power) this.collect(power.kind)
@@ -507,6 +546,7 @@ export class Game {
     } else if (this.shield) {
       this.shield = false
       this.invuln = INVULN_TIME
+      this.audio.shieldBreak()
       this.particles.burst(this.position.x, HEAD_HEIGHT, this.position.z, POWER_SPECS.shield.color, 50, 7)
       this.absorb(hit)
       this.emit()

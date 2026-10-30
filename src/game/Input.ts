@@ -7,6 +7,7 @@ export class Input {
   private right = false
   private start = false
   private pause = false
+  private mute = false
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
@@ -32,6 +33,13 @@ export class Input {
     return pressed
   }
 
+  /** True once per M press. */
+  consumeMute(): boolean {
+    const pressed = this.mute
+    this.mute = false
+    return pressed
+  }
+
   dispose() {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
@@ -49,5 +57,6 @@ export class Input {
     else if (RIGHT_KEYS.has(code)) this.right = down
     else if ((code === 'Space' || code === 'Enter') && down) this.start = true
     else if ((code === 'Escape' || code === 'KeyP') && down) this.pause = true
+    else if (code === 'KeyM' && down) this.mute = true
   }
 }
