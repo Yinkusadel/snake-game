@@ -12,6 +12,8 @@ export const HEAD_HEIGHT = 1.5
 const LIFT_LENGTH = 3.4
 const MIN_TRAIL_GAP = 0.08
 const INITIAL_LENGTH = 8
+/** Body this close to the head can't be bitten; it is the neck. */
+const SAFE_NECK = 2.6
 
 function smoothstep(a: number, b: number, x: number) {
   const t = Math.min(Math.max((x - a) / (b - a), 0), 1)
@@ -68,7 +70,48 @@ export class Snake {
     mesh.frustumCulled = false
     this.group.add(mesh, this.head.group, this.head.world)
 
-    // Start with a straight tail behind the head.
+    this.layStraightTail(x, z, heading)
+  }
+
+  /** Back to the starting length, lying straight behind the head. */
+  reset(x: number, z: number, heading: number) {
+    this.length = INITIAL_LENGTH
+    this.pending = 0
+    this.travelled = 0
+    this.lastX = x
+    this.lastZ = z
+    this.roll = 0
+    this.layStraightTail(x, z, heading)
+    this.head.reset()
+  }
+
+  /** Current length in world units. */
+  get size() {
+    return this.length
+  }
+
+  /** True if the head is touching her own body. */
+  hitsSelf(): boolean {
+    const first = Math.ceil(SAFE_NECK / STEP)
+    for (let i = first; i < this.ringCount; i++) {
+      const reach = this.radii[i] * 0.8 + 0.25
+      if (Math.hypot(this.sampleX[i] - this.lastX, this.sampleZ[i] - this.lastZ) < reach) return true
+    }
+    return false
+  }
+
+  /** Distance from a ground point to the nearest part of the body surface. */
+  distanceToBody(x: number, z: number): number {
+    let best = Infinity
+    for (let i = 0; i < this.ringCount; i++) {
+      const d = Math.hypot(this.sampleX[i] - x, this.sampleZ[i] - z) - this.radii[i]
+      if (d < best) best = d
+    }
+    return best
+  }
+
+  private layStraightTail(x: number, z: number, heading: number) {
+    this.trail.length = 0
     const bx = -Math.sin(heading)
     const bz = -Math.cos(heading)
     for (let d = MIN_TRAIL_GAP; d <= this.length + 2; d += MIN_TRAIL_GAP) {

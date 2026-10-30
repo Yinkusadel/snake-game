@@ -519,6 +519,11 @@ export class SnakeHead {
     this.world.add(strand.mesh)
   }
 
+  /** Hair snaps back to its rest pose on the next update. */
+  reset() {
+    this.primed = false
+  }
+
   update(dt: number, elapsed: number) {
     this.veilTime.value = elapsed
     this.group.updateMatrixWorld(true)
