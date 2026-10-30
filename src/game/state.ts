@@ -1,4 +1,4 @@
-export type Phase = 'ready' | 'playing' | 'over'
+export type Phase = 'ready' | 'playing' | 'paused' | 'over'
 export type DeathReason = 'wall' | 'self' | 'thorn' | 'pillar'
 
 /** An effect with a countdown. The HUD animates the bar itself. */
@@ -24,6 +24,8 @@ export interface GameState {
   best: number
   /** Body length in world units. */
   length: number
+  /** Fruit eaten this run. */
+  eaten: number
   combo: number
   multiplier: number
   level: number

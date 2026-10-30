@@ -8,6 +8,8 @@ const REASONS = {
   pillar: 'She hit a hologram pillar.',
 } as const
 
+const POWERS = Object.values(POWER_SPECS)
+
 /** A power-up chip. Timed ones drain their bar over the time they have left. */
 function Chip({ icon, label, timed }: { icon: string; label: string; timed?: TimedEffect | null }) {
   return (
@@ -31,11 +33,12 @@ function Chip({ icon, label, timed }: { icon: string; label: string; timed?: Tim
 }
 
 export function Hud({ state }: { state: GameState }) {
-  const { phase, score, best, length, combo, multiplier, reason, effects, level, levelName } = state
+  const { phase, score, best, length, eaten, combo, multiplier, reason, effects, level, levelName } = state
+  const inRun = phase === 'playing' || phase === 'paused'
 
   return (
     <div className={`hud${phase === 'playing' && effects.slow ? ' hud-slow' : ''}`}>
-      {phase === 'playing' && (
+      {inRun && (
         <>
           <div className="hud-top">
             <div className="stat">
@@ -67,12 +70,51 @@ export function Hud({ state }: { state: GameState }) {
       )}
 
       {phase === 'ready' && (
-        <div className="screen">
-          <h1 className="title">EWURABA</h1>
-          <p className="tagline">Eat the glowing fruit. Avoid the thorns. Don&rsquo;t tie yourself in knots.</p>
-          <p className="prompt">Press Space or tap to start</p>
-          <p className="hint">Steer with &larr; &rarr; or A / D. Space uses a stored Lace Dash.</p>
-          {best > 0 && <p className="hint">Best {best}</p>}
+        <div className="screen screen-title">
+          <header className="title-block">
+            <h1 className="title">EWURABA</h1>
+            <p className="subtitle">A naga&rsquo;s garden of glowing fruit</p>
+          </header>
+
+          <footer className="title-foot">
+            <p className="prompt">Press Space or tap to start</p>
+
+            <div className="legend">
+              <div className="legend-row">
+                <span className="legend-item">
+                  <b>Fruit</b> 10
+                </span>
+                <span className="legend-item">
+                  <b>Exotic</b> 25
+                </span>
+                <span className="legend-item">
+                  <b>Golden</b> 50
+                </span>
+                <span className="legend-item legend-note">Eat quickly in a row for a combo</span>
+              </div>
+              <div className="legend-row">
+                {POWERS.map((p) => (
+                  <span key={p.kind} className="legend-item">
+                    <span className="legend-icon">{p.icon}</span>
+                    <b>{p.label}</b> {p.blurb}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <p className="hint">
+              Steer with &larr; &rarr; or A / D &middot; Esc or P to pause &middot; Avoid thorns, pillars and yourself
+            </p>
+            {best > 0 && <p className="hint">Best {best}</p>}
+          </footer>
+        </div>
+      )}
+
+      {phase === 'paused' && (
+        <div className="screen screen-paused">
+          <h2 className="pause-title">Paused</h2>
+          <p className="prompt">Press Esc, P, Space or tap to resume</p>
+          <p className="hint">The game also pauses when you switch away.</p>
         </div>
       )}
 
@@ -90,6 +132,9 @@ export function Hud({ state }: { state: GameState }) {
               <span className="stat-value">{best}</span>
             </div>
           </div>
+          <p className="run-summary">
+            {eaten} fruit eaten &middot; length {length.toFixed(1)} &middot; reached {levelName}
+          </p>
           {score > 0 && score >= best && <p className="record">New best!</p>}
           <p className="prompt">Press Space or tap to play again</p>
         </div>

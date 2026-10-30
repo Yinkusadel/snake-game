@@ -8,6 +8,7 @@ const INITIAL: GameState = {
   score: 0,
   best: 0,
   length: 0,
+  eaten: 0,
   combo: 0,
   multiplier: 1,
   level: 0,

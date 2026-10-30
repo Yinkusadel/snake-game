@@ -6,6 +6,7 @@ export class Input {
   private left = false
   private right = false
   private start = false
+  private pause = false
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
@@ -21,6 +22,13 @@ export class Input {
   consumeStart(): boolean {
     const pressed = this.start
     this.start = false
+    return pressed
+  }
+
+  /** True once per Escape or P press. */
+  consumePause(): boolean {
+    const pressed = this.pause
+    this.pause = false
     return pressed
   }
 
@@ -40,5 +48,6 @@ export class Input {
     if (LEFT_KEYS.has(code)) this.left = down
     else if (RIGHT_KEYS.has(code)) this.right = down
     else if ((code === 'Space' || code === 'Enter') && down) this.start = true
+    else if ((code === 'Escape' || code === 'KeyP') && down) this.pause = true
   }
 }

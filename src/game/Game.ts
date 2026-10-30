@@ -193,6 +193,8 @@ export class Game {
     this.resize()
 
     if (import.meta.env.DEV) (window as Window & { __ewuraba?: Game }).__ewuraba = this
+    window.addEventListener('blur', this.pauseIfPlaying)
+    document.addEventListener('visibilitychange', this.pauseIfPlaying)
 
     this.snapCamera()
     this.emit()
@@ -202,6 +204,8 @@ export class Game {
   dispose() {
     cancelAnimationFrame(this.frame)
     this.resizeObserver.disconnect()
+    window.removeEventListener('blur', this.pauseIfPlaying)
+    document.removeEventListener('visibilitychange', this.pauseIfPlaying)
     this.input.dispose()
     this.timer.dispose()
     this.scene.traverse((obj) => {
@@ -266,6 +270,7 @@ export class Game {
       score: this.score,
       best: this.best,
       length: this.snake.size,
+      eaten: this.eaten,
       combo: this.combo,
       multiplier: this.multiplier,
       level: this.level,
@@ -339,12 +344,18 @@ export class Game {
   private loop = () => {
     this.frame = requestAnimationFrame(this.loop)
     this.timer.update()
-    const dt = Math.min(this.timer.getDelta(), MAX_FRAME)
+    // Everything stands still while paused; only the camera and render run.
+    const dt = this.phase === 'paused' ? 0 : Math.min(this.timer.getDelta(), MAX_FRAME)
     const elapsed = this.timer.getElapsed()
 
+    if (this.input.consumePause() && !this.options.showcase) {
+      if (this.phase === 'playing') this.setPaused(true)
+      else if (this.phase === 'paused') this.setPaused(false)
+    }
     if (this.input.consumeStart() && !this.options.showcase) {
       if (this.phase === 'ready') this.start()
       else if (this.phase === 'over' && this.sinceDeath > RESTART_DELAY) this.start()
+      else if (this.phase === 'paused') this.setPaused(false)
       else if (this.phase === 'playing') this.dash()
     }
     if (this.phase === 'over') this.sinceDeath += dt
@@ -392,6 +403,17 @@ export class Game {
     this.heading -= this.steer * TURN_RATE * dt
     this.position.x += Math.sin(this.heading) * this.speed() * dt
     this.position.z += Math.cos(this.heading) * this.speed() * dt
+  }
+
+  private setPaused(paused: boolean) {
+    this.phase = paused ? 'paused' : 'playing'
+    // Don't let the time spent paused run through the fixed-step loop on resume.
+    this.accumulator = 0
+    this.emit()
+  }
+
+  private pauseIfPlaying = () => {
+    if (this.phase === 'playing') this.setPaused(true)
   }
 
   private dash() {
@@ -527,8 +549,9 @@ export class Game {
 
   private desiredCameraPosition(out: THREE.Vector3, elapsed = 0) {
     const showcase = this.options.showcase
-    if (showcase) {
-      const angle = showcase.angle !== undefined ? (showcase.angle * Math.PI) / 180 : elapsed * 0.35
+    // The title screen slowly orbits her face; showcase mode does the same.
+    if (showcase || this.phase === 'ready') {
+      const angle = showcase?.angle !== undefined ? (showcase.angle * Math.PI) / 180 : elapsed * 0.3
       return out.set(
         this.position.x + Math.sin(angle) * SHOWCASE_DISTANCE,
         HEAD_HEIGHT + 0.25,
@@ -543,7 +566,8 @@ export class Game {
   }
 
   private focusPoint(out: THREE.Vector3) {
-    return out.set(this.position.x, this.options.showcase ? HEAD_HEIGHT : 1, this.position.z)
+    const lookAtFace = this.options.showcase || this.phase === 'ready'
+    return out.set(this.position.x, lookAtFace ? HEAD_HEIGHT : 1, this.position.z)
   }
 
   private snapCamera() {
