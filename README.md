@@ -2,14 +2,16 @@
 
 A futuristic 3D snake game. You play a girl-headed naga with a rose-and-lace crown, gliding through a bioluminescent cyber-garden, eating glowing fruits and dodging thorns.
 
-> **Status:** playable prototype. The garden, the snake, fruit, scoring and collisions are in. Power-ups, thorn hazards, sound and mobile controls are still to come. See the [design document](docs/DESIGN.md) for the full plan.
+> **Status:** playable prototype. The garden, the snake, fruit, scoring, collisions, power-ups and hazards are in. A proper title screen, sound and mobile controls are still to come. See the [design document](docs/DESIGN.md) for the full plan.
 
 ## How to play
 
 - Press **Space** or tap to start.
 - Steer with **← →** or **A / D**.
 - Eat the glowing fruit to grow and score. Exotic fruit is worth more, and golden fruit is rare and brief. Eat quickly in a row for a combo multiplier.
-- Don't hit the thorn wall or your own body.
+- Don't hit the thorn wall, the spreading thorn patches, the holographic pillars (later levels) or your own body.
+- Grab glowing pickups for power-ups: **Shield** (survives one hit), **Time Slow** (the world slows for 6 s), **Fruit Magnet** (pulls fruit in for 8 s) and **Lace Dash** (stored, press **Space** to burst forward).
+- The garden changes mood as your score climbs: Dusk, Midnight at 200, Aurora at 500.
 - Add `?quality=low` to the URL to turn off bloom and multisampling on slow devices.
 - Add `?showcase` to the URL to orbit the camera around her face.
 

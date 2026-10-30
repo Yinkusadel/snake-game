@@ -97,6 +97,21 @@ export class Fruits {
     })
   }
 
+  /** Pulls ripe fruit within `radius` towards (x, z). */
+  attract(x: number, z: number, dt: number, radius: number, speed: number) {
+    for (const item of this.items) {
+      if (item.phase !== 'ripe') continue
+      const dx = x - item.x
+      const dz = z - item.z
+      const d = Math.hypot(dx, dz)
+      if (d > radius || d < 0.01) continue
+      // Faster the closer it gets, so it snaps into her mouth.
+      const pull = speed * (1.4 - d / radius) * dt
+      item.x += (dx / d) * Math.min(pull, d)
+      item.z += (dz / d) * Math.min(pull, d)
+    }
+  }
+
   /** Ground positions of fruit that can be eaten now or soon. */
   positions() {
     return this.items.filter((i) => i.phase !== 'fade').map((i) => ({ x: i.x, z: i.z, kind: i.spec.kind }))
@@ -182,6 +197,10 @@ export class Fruits {
 
   private step(item: Item, dt: number, elapsed: number) {
     item.t += dt
+    item.group.position.x = item.x
+    item.group.position.z = item.z
+    item.marker.position.x = item.x
+    item.marker.position.z = item.z
     const markerMat = item.marker.material as THREE.MeshBasicMaterial
     const pulse = 0.5 + 0.5 * Math.sin(elapsed * 6 + item.seed)
 
