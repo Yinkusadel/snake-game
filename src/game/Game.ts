@@ -34,6 +34,8 @@ const MAX_MULTIPLIER = 5
 /** Ignore restart input briefly after dying so a held key doesn't skip the screen. */
 const RESTART_DELAY = 0.7
 const BEST_KEY = 'ewuraba-best'
+/** Average frame rate below which automatic quality steps down. */
+const LOW_FPS = 38
 
 /** How much the world slows down under Time Slow. */
 const SLOW_FACTOR = 0.45
@@ -66,7 +68,11 @@ export interface GameOptions {
    * the view; leave it out to orbit.
    */
   showcase?: { angle?: number }
-  /** 'low' drops bloom and multisampling for slow devices. */
+  /**
+   * 'low' drops bloom and multisampling from the start, 'high' keeps full
+   * quality always. Leave it out to start high and step down automatically
+   * if the frame rate is poor.
+   */
   quality?: 'low' | 'high'
   /** Called whenever score, length, combo or phase changes. */
   onState?: (state: GameState) => void
@@ -100,6 +106,14 @@ export class Game {
   private input = new Input()
   private timer = new THREE.Timer()
   private composer: EffectComposer
+  private bloom: UnrealBloomPass | null = null
+  /** 0 = full quality, 1 = lower resolution, 2 = no bloom. */
+  private qualityLevel = 0
+  private maxPixelRatio: number
+  private readonly adaptive: boolean
+  private fpsTime = 0
+  private fpsFrames = 0
+  private warmup = 0
   private garden = new Garden()
   private fruits = new Fruits()
   private dot = softDotTexture()
@@ -123,6 +137,8 @@ export class Game {
   private heading = 0
   private steer = 0
   private cameraTarget = new THREE.Vector3()
+  private scratchPosition = new THREE.Vector3()
+  private scratchFocus = new THREE.Vector3()
   private shake = 0
 
   private phase: Phase = 'ready'
@@ -149,7 +165,12 @@ export class Game {
     this.options = options
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' })
     const low = options.quality === 'low'
-    this.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio, 2))
+    this.adaptive = options.quality === undefined
+    // Phones have dense screens and weak GPUs, so cap their resolution lower.
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    this.maxPixelRatio = low ? 1 : coarse ? 1.5 : 2
+    this.qualityLevel = low ? 2 : 0
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.maxPixelRatio))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     container.appendChild(this.renderer.domElement)
@@ -188,7 +209,10 @@ export class Game {
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: low ? 0 : 4 })
     this.composer = new EffectComposer(this.renderer, target)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
-    if (!low) this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.6, 0.5, 0.9))
+    if (!low) {
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.6, 0.5, 0.9)
+      this.composer.addPass(this.bloom)
+    }
     this.composer.addPass(new OutputPass())
 
     this.resizeObserver = new ResizeObserver(this.resize)
@@ -252,6 +276,8 @@ export class Game {
       powerUps: this.powerUps.positions(),
       hazards: this.hazards.positions(),
       effects: this.effects(),
+      qualityLevel: this.qualityLevel,
+      pixelRatio: this.renderer.getPixelRatio(),
     }
   }
 
@@ -363,20 +389,25 @@ export class Game {
   private loop = () => {
     this.frame = requestAnimationFrame(this.loop)
     this.timer.update()
+    const frameTime = this.timer.getDelta()
     // Everything stands still while paused; only the camera and render run.
-    const dt = this.phase === 'paused' ? 0 : Math.min(this.timer.getDelta(), MAX_FRAME)
+    const dt = this.phase === 'paused' ? 0 : Math.min(frameTime, MAX_FRAME)
     const elapsed = this.timer.getElapsed()
+    if (this.adaptive) this.watchFrameRate(frameTime)
 
     if (this.input.consumeMute()) this.toggleMute()
-    if (this.input.consumePause() && !this.options.showcase) {
-      if (this.phase === 'playing') this.setPaused(true)
-      else if (this.phase === 'paused') this.setPaused(false)
-    }
-    if (this.input.consumeStart() && !this.options.showcase) {
+    if (this.input.consumePause() && !this.options.showcase) this.togglePause()
+
+    // A key press starts, resumes or dashes. A tap starts or resumes, but
+    // never dashes: while playing, a finger is steering.
+    const key = this.input.consumeKey()
+    const tap = this.input.consumeTap()
+    if ((key || tap) && !this.options.showcase) {
       if (this.phase === 'ready') this.start()
-      else if (this.phase === 'over' && this.sinceDeath > RESTART_DELAY) this.start()
-      else if (this.phase === 'paused') this.setPaused(false)
-      else if (this.phase === 'playing') this.dash()
+      else if (this.phase === 'over') {
+        if (this.sinceDeath > RESTART_DELAY) this.start()
+      } else if (this.phase === 'paused') this.setPaused(false)
+      else if (key) this.dash()
     }
     if (this.phase === 'over') this.sinceDeath += dt
 
@@ -446,6 +477,54 @@ export class Game {
 
   private pauseIfPlaying = () => {
     if (this.phase === 'playing') this.setPaused(true)
+  }
+
+  /** Called by the HUD's pause button and the Esc and P keys. */
+  togglePause() {
+    if (this.phase === 'playing') this.setPaused(true)
+    else if (this.phase === 'paused') this.setPaused(false)
+  }
+
+  /** Called by the HUD's dash button (touch has no Space key). */
+  triggerDash() {
+    if (this.phase === 'playing') this.dash()
+  }
+
+  /**
+   * Steps the picture quality down if the frame rate stays poor: first a
+   * lower render resolution, then no bloom. It never steps back up, so it
+   * can't flip-flop.
+   */
+  private watchFrameRate(frameTime: number) {
+    if (this.qualityLevel >= 2 || this.phase === 'paused' || document.hidden) return
+    // A tab switch or a one-off stall says nothing about steady performance.
+    // (Slow devices can legitimately take a second per frame, so the cutoff is high.)
+    if (frameTime > 2) return
+    this.warmup += frameTime
+    // The first seconds include shader compilation.
+    if (this.warmup < 2) return
+
+    this.fpsTime += frameTime
+    this.fpsFrames++
+    if (this.fpsTime < 3) return
+    const fps = this.fpsFrames / this.fpsTime
+    this.fpsTime = 0
+    this.fpsFrames = 0
+    if (fps < LOW_FPS) this.reduceQuality()
+  }
+
+  private reduceQuality() {
+    if (this.qualityLevel === 0 && this.renderer.getPixelRatio() > 1) {
+      this.qualityLevel = 1
+      this.maxPixelRatio = 1
+      this.renderer.setPixelRatio(1)
+      this.composer.setPixelRatio(1)
+      this.resize()
+    } else {
+      this.qualityLevel = 2
+      if (this.bloom) this.bloom.enabled = false
+    }
+    this.warmup = 0
   }
 
   private dash() {
@@ -612,16 +691,16 @@ export class Game {
 
   private snapCamera() {
     this.desiredCameraPosition(this.camera.position)
-    this.cameraTarget.copy(this.focusPoint(new THREE.Vector3()))
+    this.cameraTarget.copy(this.focusPoint(this.scratchFocus))
     this.camera.lookAt(this.cameraTarget)
   }
 
   private updateCamera(dt: number, elapsed: number) {
-    const desired = this.desiredCameraPosition(new THREE.Vector3(), elapsed)
+    const desired = this.desiredCameraPosition(this.scratchPosition, elapsed)
     // Frame-rate independent exponential smoothing.
     const t = this.options.showcase ? 1 : 1 - Math.exp(-6 * dt)
     this.camera.position.lerp(desired, t)
-    this.cameraTarget.lerp(this.focusPoint(new THREE.Vector3()), 1 - Math.exp(-10 * dt))
+    this.cameraTarget.lerp(this.focusPoint(this.scratchFocus), 1 - Math.exp(-10 * dt))
     this.camera.lookAt(this.cameraTarget)
 
     if (this.shake > 0) {

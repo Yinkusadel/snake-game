@@ -79,6 +79,17 @@ The model is built in code. If a `.glb` character model is supplied later, it re
 7. Audio.
 8. Mobile controls, performance tuning, polish.
 
-## 10. Open questions
-- Whether to supply a `.glb` character model for the head or body.
-- Target performance on low-end devices, which determines the quality settings.
+## 10. Open questions (resolved)
+- A `.glb` character model was not supplied, so the head and body are generated in code. A model can still replace them later.
+- Low-end devices are handled by automatic quality steps: lower render resolution first, then bloom off. `?quality=low` and `?quality=high` override it.
+
+## 11. As built
+Everything above is implemented. Where the build differs from the plan:
+- **Snake:** the face is stylised rather than realistic. There are no armbands, since she has no arms. Gold bands are part of the body texture instead.
+- **Fruit:** it spawns, ripens, drops and withers; it does not literally grow on the scenery's vines.
+- **Garden moods:** Dusk, Midnight (score 200) and Aurora (score 500) change the sky, fog and light colours only, not the plants.
+- **Time Slow:** slows fruit, pickups and hazards but not the snake, so it makes the game easier to control.
+- **Lace Dash:** a stored pickup, used with Space (keyboard) or an on-screen button (touch), not a free ability.
+- **Touch controls:** drag left or right to steer (analog), with Dash and Pause buttons. A joystick was not built.
+- **Audio:** fully generated with the Web Audio API; no audio files.
+- **Possible future work:** a hand-made character model, level-specific fruit, plants that react to the mood, a leaderboard.

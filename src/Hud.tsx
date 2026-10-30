@@ -1,4 +1,4 @@
-import { POWER_SPECS } from './game/powerups/PowerUps'
+import { POWER_SPECS } from './game/powerups/specs'
 import type { GameState, TimedEffect } from './game/state'
 
 const REASONS = {
@@ -11,11 +11,28 @@ const REASONS = {
 const POWERS = Object.values(POWER_SPECS)
 
 /** A power-up chip. Timed ones drain their bar over the time they have left. */
-function Chip({ icon, label, timed }: { icon: string; label: string; timed?: TimedEffect | null }) {
+function Chip({
+  icon,
+  label,
+  hint,
+  keyboardOnly,
+  timed,
+}: {
+  icon: string
+  label: string
+  /** Keyboard hint, hidden on touch screens. */
+  hint?: string
+  /** Hidden on touch screens, where a button does the job. */
+  keyboardOnly?: boolean
+  timed?: TimedEffect | null
+}) {
   return (
-    <div className="chip">
+    <div className={keyboardOnly ? 'chip chip-keyboard' : 'chip'}>
       <span className="chip-icon">{icon}</span>
-      <span className="chip-label">{label}</span>
+      <span className="chip-label">
+        {label}
+        {hint && <span className="mouse-only">{hint}</span>}
+      </span>
       {timed && (
         <span className="chip-bar">
           <span
@@ -32,7 +49,17 @@ function Chip({ icon, label, timed }: { icon: string; label: string; timed?: Tim
   )
 }
 
-export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: () => void }) {
+interface HudProps {
+  state: GameState
+  onToggleMute: () => void
+  onTogglePause: () => void
+  onDash: () => void
+}
+
+/** Buttons stop pointer events so touching one isn't also a tap or a steer. */
+const stopPointer = (e: React.PointerEvent) => e.stopPropagation()
+
+export function Hud({ state, onToggleMute, onTogglePause, onDash }: HudProps) {
   const { muted, phase, score, best, length, eaten, combo, multiplier, reason, effects, level, levelName } = state
   const inRun = phase === 'playing' || phase === 'paused'
 
@@ -45,7 +72,7 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
         aria-pressed={muted}
         title="Sound (M)"
         // Clicking it must not also start or resume the game.
-        onPointerDown={(e) => e.stopPropagation()}
+        onPointerDown={stopPointer}
         onClick={(e) => {
           onToggleMute()
           e.currentTarget.blur()
@@ -55,6 +82,33 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
       </button>
       {inRun && (
         <>
+          <button
+            type="button"
+            className="pause-button"
+            aria-label={phase === 'paused' ? 'Resume' : 'Pause'}
+            title="Pause (Esc or P)"
+            onPointerDown={stopPointer}
+            onClick={(e) => {
+              onTogglePause()
+              e.currentTarget.blur()
+            }}
+          >
+            {phase === 'paused' ? '▶' : '⏸'}
+          </button>
+          {phase === 'playing' && effects.dash && (
+            <button
+              type="button"
+              className="dash-button"
+              aria-label="Lace Dash"
+              onPointerDown={(e) => {
+                e.stopPropagation()
+                onDash()
+              }}
+            >
+              {POWER_SPECS.dash.icon}
+              <span>Dash</span>
+            </button>
+          )}
           <div className="hud-top">
             <div className="stat">
               <span className="stat-label">Score</span>
@@ -72,7 +126,7 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
           )}
           <div className="chips">
             {effects.shield && <Chip icon={POWER_SPECS.shield.icon} label="Shield" />}
-            {effects.dash && <Chip icon={POWER_SPECS.dash.icon} label="Dash: Space" />}
+            {effects.dash && <Chip icon={POWER_SPECS.dash.icon} label="Dash" hint=": Space" keyboardOnly />}
             {effects.slow && <Chip icon={POWER_SPECS.slow.icon} label="Time Slow" timed={effects.slow} />}
             {effects.magnet && <Chip icon={POWER_SPECS.magnet.icon} label="Magnet" timed={effects.magnet} />}
           </div>
@@ -92,7 +146,10 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
           </header>
 
           <footer className="title-foot">
-            <p className="prompt">Press Space or tap to start</p>
+            <p className="prompt">
+              <span className="mouse-only">Press Space or tap to start</span>
+              <span className="touch-only">Tap to start</span>
+            </p>
 
             <div className="legend">
               <div className="legend-row">
@@ -117,9 +174,11 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
               </div>
             </div>
 
-            <p className="hint">
-              Steer with &larr; &rarr; or A / D &middot; Esc or P to pause &middot; M for sound &middot; Avoid thorns, pillars and yourself
+            <p className="hint mouse-only">
+              Steer with &larr; &rarr; or A / D &middot; Esc or P to pause &middot; M for sound &middot; Avoid thorns,
+              pillars and yourself
             </p>
+            <p className="hint touch-only">Drag left or right to steer &middot; Avoid thorns, pillars and yourself</p>
             {best > 0 && <p className="hint">Best {best}</p>}
           </footer>
         </div>
@@ -128,7 +187,10 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
       {phase === 'paused' && (
         <div className="screen screen-paused">
           <h2 className="pause-title">Paused</h2>
-          <p className="prompt">Press Esc, P, Space or tap to resume</p>
+          <p className="prompt">
+            <span className="mouse-only">Press Esc, P, Space or tap to resume</span>
+            <span className="touch-only">Tap to resume</span>
+          </p>
           <p className="hint">The game also pauses when you switch away.</p>
         </div>
       )}
@@ -151,7 +213,10 @@ export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: (
             {eaten} fruit eaten &middot; length {length.toFixed(1)} &middot; reached {levelName}
           </p>
           {score > 0 && score >= best && <p className="record">New best!</p>}
-          <p className="prompt">Press Space or tap to play again</p>
+          <p className="prompt">
+            <span className="mouse-only">Press Space or tap to play again</span>
+            <span className="touch-only">Tap to play again</span>
+          </p>
         </div>
       )}
     </div>
