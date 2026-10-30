@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Game } from './game/Game'
+import type { Game } from './game/Game'
 import type { GameState } from './game/state'
 import { Hud } from './Hud'
 
@@ -17,23 +17,47 @@ const INITIAL: GameState = {
   effects: { shield: false, slow: null, magnet: null, dash: false },
 }
 
+/** ?quality=low or ?quality=high forces a setting; otherwise it adapts. */
+function readQuality(params: URLSearchParams) {
+  const quality = params.get('quality')
+  return quality === 'low' || quality === 'high' ? quality : undefined
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<Game | null>(null)
   const [state, setState] = useState<GameState>(INITIAL)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const showcase = params.get('showcase')
-    const angle = Number(showcase)
-    const game = new Game(containerRef.current!, {
-      showcase: showcase === null ? undefined : { angle: showcase === '' || Number.isNaN(angle) ? undefined : angle },
-      quality: params.get('quality') === 'low' ? 'low' : 'high',
-      onState: setState,
-    })
-    gameRef.current = game
+    let cancelled = false
+    let game: Game | null = null
+
+    // The 3D engine is the bulk of the download, so load it after the page
+    // has painted and show a loading message meanwhile.
+    import('./game/Game')
+      .then(({ Game }) => {
+        if (cancelled) return
+        const params = new URLSearchParams(window.location.search)
+        const showcase = params.get('showcase')
+        const angle = Number(showcase)
+        game = new Game(containerRef.current!, {
+          showcase:
+            showcase === null ? undefined : { angle: showcase === '' || Number.isNaN(angle) ? undefined : angle },
+          quality: readQuality(params),
+          onState: setState,
+        })
+        gameRef.current = game
+        setStatus('ready')
+      })
+      .catch((error: unknown) => {
+        console.error(error)
+        if (!cancelled) setStatus('failed')
+      })
+
     return () => {
-      game.dispose()
+      cancelled = true
+      game?.dispose()
       gameRef.current = null
     }
   }, [])
@@ -43,7 +67,29 @@ function App() {
   return (
     <>
       <div ref={containerRef} className="game-canvas" />
-      {!showcase && <Hud state={state} onToggleMute={() => gameRef.current?.toggleMute()} />}
+      {status === 'loading' && (
+        <div className="notice">
+          <h1 className="title">EWURABA</h1>
+          <p className="prompt">Growing the garden&hellip;</p>
+        </div>
+      )}
+      {status === 'failed' && (
+        <div className="notice">
+          <h1 className="title">EWURABA</h1>
+          <p className="tagline">
+            The game couldn&rsquo;t start. It needs a browser with WebGL enabled. Try updating your browser or turning
+            on hardware acceleration, then reload.
+          </p>
+        </div>
+      )}
+      {status === 'ready' && !showcase && (
+        <Hud
+          state={state}
+          onToggleMute={() => gameRef.current?.toggleMute()}
+          onTogglePause={() => gameRef.current?.togglePause()}
+          onDash={() => gameRef.current?.triggerDash()}
+        />
+      )}
     </>
   )
 }
