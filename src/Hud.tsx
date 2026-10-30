@@ -32,12 +32,27 @@ function Chip({ icon, label, timed }: { icon: string; label: string; timed?: Tim
   )
 }
 
-export function Hud({ state }: { state: GameState }) {
-  const { phase, score, best, length, eaten, combo, multiplier, reason, effects, level, levelName } = state
+export function Hud({ state, onToggleMute }: { state: GameState; onToggleMute: () => void }) {
+  const { muted, phase, score, best, length, eaten, combo, multiplier, reason, effects, level, levelName } = state
   const inRun = phase === 'playing' || phase === 'paused'
 
   return (
     <div className={`hud${phase === 'playing' && effects.slow ? ' hud-slow' : ''}`}>
+      <button
+        type="button"
+        className="sound-button"
+        aria-label={muted ? 'Turn sound on' : 'Turn sound off'}
+        aria-pressed={muted}
+        title="Sound (M)"
+        // Clicking it must not also start or resume the game.
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          onToggleMute()
+          e.currentTarget.blur()
+        }}
+      >
+        {muted ? '\u{1F507}' : '\u{1F50A}'}
+      </button>
       {inRun && (
         <>
           <div className="hud-top">
@@ -103,7 +118,7 @@ export function Hud({ state }: { state: GameState }) {
             </div>
 
             <p className="hint">
-              Steer with &larr; &rarr; or A / D &middot; Esc or P to pause &middot; Avoid thorns, pillars and yourself
+              Steer with &larr; &rarr; or A / D &middot; Esc or P to pause &middot; M for sound &middot; Avoid thorns, pillars and yourself
             </p>
             {best > 0 && <p className="hint">Best {best}</p>}
           </footer>
