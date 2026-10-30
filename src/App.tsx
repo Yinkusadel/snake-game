@@ -3,7 +3,17 @@ import { Game } from './game/Game'
 import type { GameState } from './game/state'
 import { Hud } from './Hud'
 
-const INITIAL: GameState = { phase: 'ready', score: 0, best: 0, length: 0, combo: 0, multiplier: 1 }
+const INITIAL: GameState = {
+  phase: 'ready',
+  score: 0,
+  best: 0,
+  length: 0,
+  combo: 0,
+  multiplier: 1,
+  level: 0,
+  levelName: 'Dusk',
+  effects: { shield: false, slow: null, magnet: null, dash: false },
+}
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null)
